@@ -5,6 +5,8 @@ import (
 	"io"
 	"net"
 	"sync"
+
+	"github.com/google/uuid"
 )
 
 type Server struct {
@@ -35,15 +37,15 @@ func (server *Server) ListenCh() {
 		server.MapLock.Unlock()
 	}
 }
-func (server *Server) Broadcast(user *User, msg string) {
-	server.Ch <- fmt.Sprintf("[%s]%s:%s", user.Addr, user.Name, msg)
+func (server *Server) SendToAll(user *User, msg string) {
+	server.Ch <- fmt.Sprintf("[%s|all]msg:%s", user.Code, msg)
 }
-
-func (server *Server) SendToUser(sender *User, userCode string, msg string) {
-	for code, user := range server.Users {
-		if userCode == code {
+func (server *Server) SendToUser(sender *User, code uuid.UUID, msg string) {
+	for _, user := range server.Users {
+		if code == user.Code {
+			user.Ch <- fmt.Sprintf("[%s|%s]msg:%s", sender.Code, user.Code, msg)
 			for _, ch := range user.Addrs {
-				ch <- fmt.Sprintf("[%s]%s:%s", user.Addr, sender.Name, msg)
+				ch <- fmt.Sprintf("[%s|%s]msg:%s", sender.Code, user.Code, msg)
 			}
 			break
 		}
@@ -51,24 +53,28 @@ func (server *Server) SendToUser(sender *User, userCode string, msg string) {
 }
 
 func (server *Server) Handler(conn net.Conn) {
-	fmt.Println("连接建立成功")
 	user := NewUser(conn, server)
-	user.Login()
+	fmt.Printf("User address %s connected\n", user.Addr)
+	// user.Login()
 	go func() {
 		buf := make([]byte, 4096)
 		for {
 			l, err := conn.Read(buf)
-			if l == 0 {
-				user.Logout()
-				return
-			}
 			if err != nil && err != io.EOF {
 				fmt.Println("Conn read err:", err)
 				return
 			}
-			msg := string(buf)
+			msg := ""
+			if l > 0 {
+				msg = string(buf[:l-1])
+			} else {
+				user.Logout()
+				return
+			}
 			fmt.Println(user.Addr, msg)
 			switch msg {
+			case "":
+				fmt.Printf("User address %s connected\n", user.Addr)
 			case "login":
 				// user := NewUser(conn, server)
 				// user.Logout()
