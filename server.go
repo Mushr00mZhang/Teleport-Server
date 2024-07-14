@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -55,39 +56,47 @@ func (server *Server) SendToUser(sender *User, code uuid.UUID, msg string) {
 func (server *Server) Handler(conn net.Conn) {
 	user := NewUser(conn, server)
 	fmt.Printf("User address %s connected\n", user.Addr)
+	user.SetUsers()
+	// user.SetCode()
 	// user.Login()
 	go func() {
 		buf := make([]byte, 4096)
 		for {
+			fmt.Println("Receive msg")
 			l, err := conn.Read(buf)
-			if err != nil && err != io.EOF {
+			if err != nil {
+				if err == io.EOF {
+
+				} else if err, ok := err.(*net.OpError); ok && err.Op == "read" {
+					server.MapLock.Lock()
+					delete(server.Users, user.Code.String())
+					server.MapLock.Unlock()
+				}
 				fmt.Println("Conn read err:", err)
 				return
 			}
-			msg := ""
-			if l > 0 {
-				msg = string(buf[:l-1])
-			} else {
-				user.Logout()
+			fmt.Printf("Message received: %s size: %dB\n", string(buf[:l]), l)
+			var res map[string]interface{}
+			err = json.Unmarshal(buf[:l], &res)
+			if err != nil {
+				fmt.Println("Unmarshal res err:", err)
 				return
 			}
-			fmt.Println(user.Addr, msg)
-			switch msg {
-			case "":
-				fmt.Printf("User address %s connected\n", user.Addr)
-			case "login":
+			switch res["Type"] {
+			// case "":
+			// 	fmt.Printf("User address %s connected\n", user.Addr)
+			case "Login":
+				user.Name = res["Name"].(string)
 				// user := NewUser(conn, server)
 				// user.Logout()
-				user.Login()
-			case "logout":
-				user.Logout()
-			default:
-				user.SendMsg(msg)
+				// user.Login()
+			case "Logout":
+				// user.Logout()
+			case "Send":
+				user.SendToUser(res["To"].(string), res["Msg"].(string))
 			}
 		}
 	}()
-	// 当前handler阻塞
-	// select {}
 }
 func (server *Server) Start() {
 
