@@ -56,7 +56,7 @@ func (server *Server) SendToUser(sender *User, code uuid.UUID, msg string) {
 func (server *Server) Handler(conn net.Conn) {
 	user := NewUser(conn, server)
 	fmt.Printf("User address %s connected\n", user.Addr)
-	user.SetUsers()
+	// user.SetUsers()
 	// user.SetCode()
 	// user.Login()
 	go func() {
@@ -87,6 +87,9 @@ func (server *Server) Handler(conn net.Conn) {
 			// 	fmt.Printf("User address %s connected\n", user.Addr)
 			case "Login":
 				user.Name = res["Name"].(string)
+				for _, user := range user.Server.Users {
+					user.SetUsers()
+				}
 				// user := NewUser(conn, server)
 				// user.Logout()
 				// user.Login()
