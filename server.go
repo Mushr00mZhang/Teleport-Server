@@ -71,6 +71,9 @@ func (server *Server) Handler(conn net.Conn) {
 					server.MapLock.Lock()
 					delete(server.Users, user.Code.String())
 					server.MapLock.Unlock()
+					for _, user := range user.Server.Users {
+						user.SetUsers()
+					}
 				}
 				fmt.Println("Conn read err:", err)
 				return
