@@ -72,9 +72,13 @@ func (client *Client) Read(remote string, server *Server) {
 		}
 		err = json.Unmarshal(buf, &msg)
 		if err != nil {
-			log.Printf("Parse error: %v", err)
+			log.Printf("Unmarshal error: %v", err)
 		}
 		msg.Time = time.Now()
+		buf, err = json.Marshal(msg)
+		if err != nil {
+			log.Printf("Marshal error: %v", err)
+		}
 		switch msg.Type {
 		case "rename":
 			client.NickName = msg.Content
