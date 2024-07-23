@@ -47,6 +47,7 @@ type Message struct {
 	Content string
 	From    string
 	To      string
+	Time    time.Time
 }
 
 func (client *Client) Read(remote string, server *Server) {
@@ -73,6 +74,7 @@ func (client *Client) Read(remote string, server *Server) {
 		if err != nil {
 			log.Printf("Parse error: %v", err)
 		}
+		msg.Time = time.Now()
 		switch msg.Type {
 		case "rename":
 			client.NickName = msg.Content
