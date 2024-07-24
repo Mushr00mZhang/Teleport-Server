@@ -1,0 +1,15 @@
+services:
+  teleport_server:
+    image: teleport-server
+    container_name: teleport_server
+    ports:
+      - 3011:8889
+    # volumes:
+    #   - ./config.yml:/app/config.yml
+    environment:
+      - TZ=Asia/Shanghai
+    networks:
+      - common_bridge
+networks:
+  common_bridge:
+    external: true

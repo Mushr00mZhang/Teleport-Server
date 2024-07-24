@@ -1,0 +1,6 @@
+.vscode
+__debug*
+*.tar
+*.exe
+*.md
+cli
