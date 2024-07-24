@@ -15,8 +15,6 @@ func main() {
 		tz = "Asia/Shanghai"
 	}
 	time.LoadLocation(tz)
-	// server := NewServer("", 8888)
-	// go server.Start()
 	ws := websocket.NewServer("", 8889)
 	ws.Listen()
 }

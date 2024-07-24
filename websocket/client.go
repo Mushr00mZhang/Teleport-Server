@@ -35,16 +35,16 @@ var upgrader = websocket.Upgrader{
 }
 
 type Client struct {
-	Id        *uuid.UUID                 `json:"-"` // Id
-	LoginName string                     ``         // 登录名
-	Password  string                     ``         // 密码
-	NickName  string                     ``         // 昵称
-	Conns     map[string]*websocket.Conn `json:"-"` // [监听地址]:连接池
-	Chans     map[string]chan []byte     `json:"-"` // [监听地址]:通道
+	Id        *uuid.UUID                 `json:"-"`          // Id
+	LoginName string                     ``                  // 登录名
+	Password  string                     `json:",omitempty"` // 密码
+	NickName  string                     ``                  // 昵称
+	Conns     map[string]*websocket.Conn `json:"-"`          // [监听地址]:连接池
+	Chans     map[string]chan []byte     `json:"-"`          // [监听地址]:通道
 }
 type Message struct {
 	Type    string
-	Content string
+	Content interface{}
 	From    string
 	To      string
 	Time    time.Time
@@ -57,6 +57,9 @@ func (client *Client) Read(remote string, server *Server) {
 		close(ch)
 		delete(client.Conns, remote)
 		delete(client.Chans, remote)
+		if len(client.Chans) == 0 {
+			server.Logoff(client)
+		}
 	}()
 	conn.SetReadLimit(maxMessageSize)
 	conn.SetReadDeadline(time.Now().Add(pongWait))
@@ -81,7 +84,10 @@ func (client *Client) Read(remote string, server *Server) {
 		}
 		switch msg.Type {
 		case "rename":
-			client.NickName = msg.Content
+			nickName, ok := msg.Content.(string)
+			if ok {
+				client.NickName = nickName
+			}
 		case "text":
 			if msg.To != client.LoginName {
 				if to, ok := server.Clients[msg.To]; ok {
@@ -185,4 +191,7 @@ func Login(w http.ResponseWriter, r *http.Request, server *Server) {
 	client.Chans[r.RemoteAddr] = make(chan []byte, 256)
 	go client.Read(r.RemoteAddr, server)
 	go client.Write(r.RemoteAddr, server)
+	if len(client.Chans) == 1 {
+		server.Login(client)
+	}
 }
