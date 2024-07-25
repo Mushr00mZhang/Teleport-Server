@@ -26,7 +26,7 @@ func NewServer(addr string, port int) *Server {
 }
 
 func (server *Server) Listen() {
-	http.HandleFunc("/login", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/api/login", func(w http.ResponseWriter, r *http.Request) {
 		Login(w, r, server)
 	})
 	err := http.ListenAndServe(fmt.Sprintf("%s:%d", server.Addr, server.Port), nil)

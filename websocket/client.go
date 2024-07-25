@@ -77,18 +77,36 @@ func (client *Client) Read(remote string, server *Server) {
 		if err != nil {
 			log.Printf("Unmarshal error: %v", err)
 		}
-		msg.Time = time.Now()
-		buf, err = json.Marshal(msg)
-		if err != nil {
-			log.Printf("Marshal error: %v", err)
-		}
 		switch msg.Type {
 		case "rename":
 			nickName, ok := msg.Content.(string)
 			if ok {
 				client.NickName = nickName
 			}
+		case "getUsers":
+			users := make([]*Client, len(server.Clients))
+			i := 0
+			for _, cl := range server.Clients {
+				users[i] = cl
+				i++
+			}
+			msg := Message{
+				Type:    "users",
+				Content: users,
+				From:    "server",
+				To:      client.LoginName,
+			}
+			buf, err := json.Marshal(msg)
+			if err != nil {
+				log.Printf("Marshal error: %v", err)
+			}
+			ch <- buf
 		case "text":
+			msg.Time = time.Now()
+			buf, err := json.Marshal(msg)
+			if err != nil {
+				log.Printf("Marshal error: %v", err)
+			}
 			if msg.To != client.LoginName {
 				if to, ok := server.Clients[msg.To]; ok {
 					for _, ch := range to.Chans {
