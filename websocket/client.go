@@ -2,8 +2,12 @@ package websocket
 
 import (
 	"encoding/json"
+	"fmt"
+	"io"
 	"log"
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -21,7 +25,7 @@ const (
 	pingPeriod = (pongWait * 9) / 10
 
 	// Maximum message size allowed from peer.
-	maxMessageSize = 512
+	maxMessageSize = 1024 * 1024 * 2
 )
 
 var (
@@ -49,6 +53,21 @@ type Message struct {
 	To      string
 	Time    time.Time
 }
+type FileContent struct {
+	Id    string
+	Buf   []int8
+	Index int
+	Count int
+	Size  int
+	MD5   string
+}
+type FileMsg struct {
+	Type    string
+	Content FileContent
+	From    string
+	To      string
+	Time    time.Time
+}
 
 func (client *Client) Read(remote string, server *Server) {
 	conn, ch := client.Conns[remote], client.Chans[remote]
@@ -68,10 +87,38 @@ func (client *Client) Read(remote string, server *Server) {
 		var msg Message
 		_, buf, err := conn.ReadMessage()
 		if err != nil {
-			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-				log.Printf("error: %v", err)
-			}
+			// if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
+			// }
+			log.Printf("error: %v", err)
 			break
+		}
+		if string(buf[0:10]) == "file-chunk" {
+			id := string(buf[10:46])
+			index, err := strconv.ParseInt(strings.TrimSpace(string(buf[46:54])), 10, 32)
+			if err != nil {
+				continue
+			}
+			count, err := strconv.ParseInt(strings.TrimSpace(string(buf[54:62])), 10, 32)
+			if err != nil {
+				continue
+			}
+			md5 := string(buf[62:94])
+			to := strings.TrimSpace(string(buf[94:128]))
+			fmt.Printf("File chunk to: %s id: %s[%s/%d] md5: %s len: %d\n", to, id, strings.Repeat("0", len(strconv.FormatInt(count, 10))-len(strconv.FormatInt(index+1, 10)))+strconv.FormatInt(index+1, 10), count, md5, len(buf)-128)
+			if to != client.LoginName {
+				if to, ok := server.Clients[to]; ok {
+					for _, ch := range to.Chans {
+						ch <- buf
+					}
+				}
+			} else {
+				for addr, ch := range client.Chans {
+					if addr != remote {
+						ch <- buf
+					}
+				}
+			}
+			continue
 		}
 		err = json.Unmarshal(buf, &msg)
 		if err != nil {
@@ -120,6 +167,44 @@ func (client *Client) Read(remote string, server *Server) {
 					}
 				}
 			}
+		case "file":
+			msg.Time = time.Now()
+			buf, err := json.Marshal(msg)
+			if err != nil {
+				log.Printf("Marshal error: %v", err)
+			}
+			if msg.To != client.LoginName {
+				if to, ok := server.Clients[msg.To]; ok {
+					for _, ch := range to.Chans {
+						ch <- buf
+					}
+				}
+			} else {
+				for addr, ch := range client.Chans {
+					if addr != remote {
+						ch <- buf
+					}
+				}
+			}
+			// case "file-chunk":
+			// 	msg.Time = time.Now()
+			// 	buf, err := json.Marshal(msg)
+			// 	if err != nil {
+			// 		log.Printf("Marshal error: %v", err)
+			// 	}
+			// 	if msg.To != client.LoginName {
+			// 		if to, ok := server.Clients[msg.To]; ok {
+			// 			for _, ch := range to.Chans {
+			// 				ch <- buf
+			// 			}
+			// 		}
+			// 	} else {
+			// 		for addr, ch := range client.Chans {
+			// 			if addr != remote {
+			// 				ch <- buf
+			// 			}
+			// 		}
+			// 	}
 		}
 	}
 }
@@ -139,8 +224,13 @@ func (client *Client) Write(remote string, server *Server) {
 				conn.WriteMessage(websocket.CloseMessage, []byte{})
 				return
 			}
-
-			w, err := conn.NextWriter(websocket.TextMessage)
+			var w io.WriteCloser
+			var err error
+			if string(buf[0:10]) == "file-chunk" {
+				w, err = conn.NextWriter(websocket.BinaryMessage)
+			} else {
+				w, err = conn.NextWriter(websocket.TextMessage)
+			}
 			if err != nil {
 				return
 			}
