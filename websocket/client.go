@@ -237,11 +237,11 @@ func (client *Client) Write(remote string, server *Server) {
 			w.Write(buf)
 
 			// Add queued chat messages to the current websocket message.
-			n := len(ch)
-			for i := 0; i < n; i++ {
-				w.Write(newline)
-				w.Write(<-ch)
-			}
+			// n := len(ch)
+			// for i := 0; i < n; i++ {
+			// 	w.Write(newline)
+			// 	w.Write(<-ch)
+			// }
 
 			if err := w.Close(); err != nil {
 				return
