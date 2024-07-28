@@ -45,6 +45,7 @@ type Client struct {
 	NickName  string                     ``                  // 昵称
 	Conns     map[string]*websocket.Conn `json:"-"`          // [监听地址]:连接池
 	Chans     map[string]chan []byte     `json:"-"`          // [监听地址]:通道
+	Status    int                        ``                  // 状态
 }
 type Message struct {
 	Type    string
@@ -77,6 +78,7 @@ func (client *Client) Read(remote string, server *Server) {
 		delete(client.Conns, remote)
 		delete(client.Chans, remote)
 		if len(client.Chans) == 0 {
+			client.Status = 0
 			server.Logoff(client)
 		}
 	}()
@@ -297,6 +299,7 @@ func Login(w http.ResponseWriter, r *http.Request, server *Server) {
 	}
 	client.Conns[r.RemoteAddr] = conn
 	client.Chans[r.RemoteAddr] = make(chan []byte, 256)
+	client.Status = 1
 	go client.Read(r.RemoteAddr, server)
 	go client.Write(r.RemoteAddr, server)
 	if len(client.Chans) == 1 {
