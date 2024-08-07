@@ -1,3 +1,3 @@
 docker load <teleport_server.tar
-docker compose down
-docker compose up -d --remove-orphans
+docker compose -p telteport_server down
+docker compose -p telteport_server up -d --remove-orphans
